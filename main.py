@@ -14,15 +14,18 @@ import os
 import pandas as pd
 
 
-
-
-
-
 edges = pd.read_csv('./cfg_edges.csv')
 properties = pd.read_csv('./cfg_label.csv')
 
 print(edges.head())
 print(properties.head())
+
+def collate(samples):
+    # The input `samples` is a list of pairs
+    #  (graph, label).
+    graphs, labels = map(list, zip(*samples))
+    batched_graph = dgl.batch(graphs)
+    return batched_graph, torch.tensor(labels)
 
 class Classifier(nn.Module):
     def __init__(self, in_dim, hidden_dim, n_classes):
@@ -97,7 +100,7 @@ graph, label = dataset[0]
 print(graph, label)
 dataloader = GraphDataLoader(
     dataset,
-    batch_size=1024,
+    batch_size=1,
     drop_last=False,
     shuffle=True)
 
@@ -114,18 +117,18 @@ test_dataloader = GraphDataLoader(
     dataset, sampler=test_sampler, batch_size=1, drop_last=False)
 
 
-model = Classifier(1, 20, 2)
+model = Classifier(1, 256, 2)
 loss_func = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.05)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 model.train()
 
 epoch_losses = []
-for epoch in range(20):
+for epoch in range(50):
     epoch_loss = 0
-    for iter, (bg, label) in enumerate(train_dataloader):
+    for iter, (bg, label) in enumerate(dataloader):
         bg = dgl.add_self_loop(bg)
         prediction = model(bg)
-        loss = loss_func(prediction, label.long())
+        loss = loss_func(prediction, label)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -135,19 +138,33 @@ for epoch in range(20):
     epoch_losses.append(epoch_loss)
 
 
+torch.save(model.state_dict(), 'model_weights.pth')
 model.eval()
-# Convert a list of tuples to two lists
-test_X, test_Y = map(list, zip(*test_dataloader))
-test_bg = dgl.batch(test_X)
-test_bg = dgl.add_self_loop(test_bg)
-test_Y = torch.tensor(test_Y).float().view(-1, 1)
-probs_Y = torch.softmax(model(test_bg), 1)
-sampled_Y = torch.multinomial(probs_Y, 1)
-argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
-print('Accuracy of sampled predictions on the test set: {:.4f}%'.format(
-    (test_Y == sampled_Y.float()).sum().item() / len(test_Y) * 100))
-print('Accuracy of argmax predictions on the test set: {:4f}%'.format(
-    (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
+
+# Calculate accuracy
+test_X, test_Y = map(list, zip(*dataloader))
+pred = []
+for g in test_X:
+    g = dgl.add_self_loop(g)
+    probs_g = torch.softmax(model(g), 1)
+    sampled_g = torch.multinomial(probs_g, 1)
+    pred.append(sampled_g.item())
+
+count = 0
+for i in range(len(pred)):
+    if pred[i] == test_Y[i]:
+        count += 1
+
+
+print('Accuracy: ', 100*count/len(test_Y))
+
+# probs_Y = torch.softmax(model(test_bg), 1)
+# print(probs_Y)
+# sampled_Y = torch.multinomial(probs_Y, 1)
+# print(sampled_Y.size())
+# print('Accuracy of sampled predictions on the test set: {:.4f}%'.format(
+#     (test_Y == sampled_Y.int()).sum().item() / len(test_Y) * 100))
+
 
 # num_correct = 0
 # num_tests = 0
