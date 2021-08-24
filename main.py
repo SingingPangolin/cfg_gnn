@@ -46,7 +46,7 @@ class Classifier(nn.Module):
         hg = dgl.mean_nodes(g, 'h')     ### Readout Function
         return self.classify(hg)
 
-
+#generate dgl dataset from csv file
 class CFGDataset(DGLDataset):
     def __init__(self):
         super().__init__(name='cfg')
@@ -138,7 +138,8 @@ for epoch in range(50):
     epoch_losses.append(epoch_loss)
 
 
-torch.save(model.state_dict(), 'model_weights.pth')
+torch.save(model.state_dict(), 'model_para.pt')
+torch.save(model, 'model_weights.pt')
 model.eval()
 
 # Calculate accuracy
