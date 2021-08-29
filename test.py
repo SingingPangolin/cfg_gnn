@@ -4,7 +4,7 @@ import dgl
 from dgl.data import DGLDataset
 from sklearn.metrics import confusion_matrix
 from dgl.dataloading import GraphDataLoader
-from main import Classifier, CFGDataset
+from utils import Classifier, CFGDataset
 
 
 edges = pd.read_csv('./cfg_edges.csv')
@@ -43,7 +43,14 @@ for g in test_X:
     # print(argmax_Y)
 
 true = [i.tolist()[0] for i in test_Y]
+print('Confusion matrix: ')
 print(confusion_matrix(true,pred))
+
+count = 0
+for i in range(len(pred)):
+    if pred[i] == test_Y[i]:
+        count += 1
+print('Accuracy: ', 100*count/len(test_Y))
 
 
 # print('Graph label: ', test_Y)
